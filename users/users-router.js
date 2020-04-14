@@ -4,7 +4,7 @@ const users = require("./users-model")
 const router = express.Router()
 
 // This handles the route `GET /users`
-router.get("/", (req, res) => {
+router.get("/", /*can add MW directly into our route handler*/(req, res) => {
 	// these options are supported by the `users.find` method,
 	// so we get them from the query string and pass them through.
 	const options = {
@@ -19,98 +19,91 @@ router.get("/", (req, res) => {
 			res.status(200).json(users)
 		})
 		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Error retrieving the users",
-			})
+			next(error)
 		})
 })
 
 // This handles the route `GET /users/:id`
-router.get("/:id", (req, res) => {
-	users.findById(req.params.id)
-		.then((user) => {
-			if (user) {
-				res.status(200).json(user)
-			} else {
-				res.status(404).json({
-					message: "User not found",
-				})
-			}
-		})
-		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Error retrieving the user",
-			})
-		})
+router.get("/:id", validateUserId(), (req, res) => {
+	res.status(200).json(req.user)
+//	validateUserId() replace this code:
+// 	users.findById(req.params.id)
+// 		.then((user) => {
+// 			if (user) {
+// 				res.status(200).json(user)
+// 			} else {
+// 				res.status(404).json({
+// 					message: "User not found",
+// 				})
+// 			}
+// 		})
+// 		.catch((error) => {
+// 			console.log(error)
+// 			res.status(500).json({
+// 				message: "Error retrieving the user",
+// 			})
+// 		})
 })
 
 // This handles the route `POST /users`
-router.post("/", (req, res) => {
-	if (!req.body.name || !req.body.email) {
-		return res.status(400).json({
-			message: "Missing user name or email",
-		})
-	}
+router.post("/", bodyReqs(), (req, res) => {
+	// if (!req.body.name || !req.body.email) {
+	// 	return res.status(400).json({
+	// 		message: "Missing user name or email",
+	// 	})
+	// }
 
 	users.add(req.body)
 		.then((user) => {
 			res.status(201).json(user)
 		})
 		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Error adding the user",
-			})
+			next(error)
 		})
 })
 
 // This handles the route `PUT /users/:id`
-router.put("/:id", (req, res) => {
-	if (!req.body.name || !req.body.email) {
-		return res.status(400).json({
-			message: "Missing user name or email",
-		})
-	}
+router.put("/:id", bodyReqs(), validateUserId(), (req, res) => {
+	
+	// if (!req.body.name || !req.body.email) {
+	// 	return res.status(400).json({
+	// 		message: "Missing user name or email",
+	// 	})
+	// }
 
 	users.update(req.params.id, req.body)
 		.then((user) => {
-			if (user) {
+		//	if (user) {
 				res.status(200).json(user)
-			} else {
-				res.status(404).json({
-					message: "The user could not be found",
-				})
-			}
-		})
-		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Error updating the user",
+		//	} else {
+		//		res.status(404).json({
+		//			message: "The user could not be found",
+		//		})
 			})
-		})
+		// .catch((error) => {
+		// 	console.log(error)
+		// 	res.status(500).json({
+		// 		message: "Error updating the user",
+		// 	})
+		// })
 })
 
 // This handles the route `DELETE /users/:id`
-router.delete("/:id", (req, res) => {
+router.delete("/:id", validateUserId(), (req, res) => {
 	users.remove(req.params.id)
 		.then((count) => {
-			if (count > 0) {
+		//	if (count > 0) {
 				res.status(200).json({
-					message: "The user has been nuked",
+		//			message: "The user has been nuked",
 				})
-			} else {
-				res.status(404).json({
-					message: "The user could not be found",
-				})
-			}
+		//	} else {
+		//		res.status(404).json({
+    	//				message: "The user could not be found",
+    	//			})
+    	//		}
 		})
 		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Error removing the user",
-			})
+			next(error)
 		})
 })
 
@@ -145,10 +138,7 @@ router.get("/:id/posts/:postId", (req, res) => {
 			}
 		})
 		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Could not get user post",
-			})
+			next(error)
 		})
 })
 
@@ -166,11 +156,46 @@ router.post("/:id/posts", (req, res) => {
 			res.status(201).json(post)
 		})
 		.catch((error) => {
-			console.log(error)
-			res.status(500).json({
-				message: "Could not create user post",
-			})
+			next(error)
 		})
 })
+
+// MW hof() to extract repeating code from route handlers as a cb
+function validateUserId() {
+	return (req, res, next) => {
+		users.findById(req.params.id)
+			.then((user) => {
+				if(user) {
+					// make the user obj available to later MW f()s
+					req.user = user
+					next() //call success, next() to move on to the next piece of MW
+				} else {
+					res.status(404).json({
+						message: "User not found."
+					})
+				}
+			})
+			.catch((error) => {
+				next(error) // replaces the below code
+			// 	console.log(error)
+			// 	res.status(500).json({
+			// 		message: "Could not find user",
+			// })
+		})	
+	}
+}
+
+function bodyReqs() {
+	return (req, res, next) => {
+		if(!req.body.name || !req.body.email) {
+			 return res.status(400).json({
+				message: "Missing name or email."
+			})
+		} 
+		  next()
+	}
+ }
+
+
 
 module.exports = router
